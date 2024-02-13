@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UE 902-1 WebMapping</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-image: url('https://mlang.frama.io/cours-marc-lang/img/teledec/background_rs2.png');
+            background-size: cover;
+            background-position: center;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            height: 550px;
+            position: relative;
+        }
+        .zoom-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        h1, h3 {
+            text-align: center;
+             /* background-color: white;
+            padding: 10px;*/
+        }
+
+        h3 {
+            background-color: white;
+            padding: 10px; /* Ajoute un espacement autour du texte pour plus de lisibilité */
+        }
+
+         /* Ajoute un fond blanc derrière chaque bloc de texte */
+         p {
+            background-color: white;
+            padding: 20px;
+            text-align: justify; 
+        }
+    </style>
+</head>
+<body>
+    <h1>UE 902-1 WebMapping</h1>
+    <h3>Carte produite dans le cadre du projet de l'UE 901-21</h3>
+    <br></br>
+    <p>L'indice de végétation par différence normalisée (NDVI) est un indice utilisé pour évaluer la densité de la végétation et sa santé. Il est calculé à partir de données satellitaires et mesure la différence entre la réflectance de la lumière rouge et celle du proche infrarouge. Un NDVI élevé indique une végétation dense et saine, tandis qu'un NDVI faible indique une végétation clairsemée ou stressée.
+        <br></br>
+        <br></br>
+        Dans le cadre du projet de l'UE 901-21, une analyse du NDVI a été réalisée sur une zone spécifique, laquelle est affichée sur la carte ci-dessous. Les zones de Nodata ont été exclues de cette visualisation.
+    </p>
+
+    <div id="map"></div>
+
+    <p>Pour notre rapport, nous avons choisi d'examiner en détail la forêt de Bouconne, en raison de sa représentativité et de son ampleur, offrant ainsi un échantillonnage significatif. Toutes nos analyses ont été menées spécifiquement sur cette zone. La zone est consultable sur la carte via le bouton zoom suivant : <button onclick="zoomToForest()">Zoom Forêt Bouconne</button>
+    Le site officiel de la fôret de Bouconne est consultable via le lien de l'icone.</p>
+    <br></br>
+    <p>La légende du NDVI joue un rôle crucial dans l'interprétation des données cartographiques. Elle offre une représentation visuelle des valeurs de l'Indice de Végétation par Différence Normalisée, permettant ainsi de décoder les nuances de couleur et de comprendre la densité de la végétation ainsi que sa santé. Traditionnellement, les valeurs élevées de NDVI, allant du vert foncé au vert clair, indiquent une végétation dense et vigoureuse, tandis que les valeurs plus basses, représentées en jaune à rouge, signalent une végétation plus clairsemée ou stressée. Cette légende est un outil indispensable pour analyser les données satellitaires et appréhender les caractéristiques écologiques d'une région spécifique.
+        <br></br>
+        Chaque pixel de la carte est associé à une valeur de NDVI, et cette valeur est ensuite traduite en couleur selon une échelle prédéfinie. Pour faciliter la consultation de ces valeurs, une fonctionnalité a été intégrée à la carte : en cliquant sur l'un des pixels, une fenêtre contextuelle apparaît, affichant la valeur du NDVI à cet emplacement précis. Cela permet aux utilisateurs d'obtenir des informations détaillées sur la végétation présente dans différentes zones de la carte.</p>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([43.5527, 1.3391], 9); // Zoom normal
+
+        var baseMaps = {
+            "Google Maps": L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains:['mt0','mt1','mt2','mt3']
+            }),
+            "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+            })
+        };
+
+        var wmsLayer = L.tileLayer.wms('https://www.geotests.net/geoserver/ows', {
+            layers: 'alegriffon:ndvi_15042021',
+            format: 'image/png',
+            transparent: true,
+            attribution: 'LEGRIFFON',
+        }).addTo(map);
+
+        map.on('click', function(e) {
+            var url = getFeatureInfoUrl(map, wmsLayer, e.latlng, { 'info_format': 'text/plain' });
+            fetchAndDisplayInfo(url, e.latlng, map);
+        });
+
+        function zoomToForest() {
+            map.setView([43.631502, 1.213608], 12); // Zoom sur la Forêt de Bouconne
+        }
+
+        function getFeatureInfoUrl(map, layer, latlng, params) {
+            var point = map.latLngToContainerPoint(latlng),
+                size = map.getSize(),
+                bounds = map.getBounds(),
+                sw = bounds.getSouthWest(),
+                ne = bounds.getNorthEast();
+
+            var defaultParams = {
+                request: 'GetFeatureInfo',
+                service: 'WMS',
+                srs: 'EPSG:4326',
+                styles: '',
+                version: layer._wmsVersion,
+                format: layer.options.format,
+                bbox: sw.lng + ',' + sw.lat + ',' + ne.lng + ',' + ne.lat,
+                height: size.y,
+                width: size.x,
+                layers: layer.options.layers,
+                query_layers: layer.options.layers,
+                info_format: 'text/plain'
+            };
+
+            params = L.Util.extend(defaultParams, params || {});
+            params[params.version === '1.3.0' ? 'i' : 'x'] = parseInt(point.x);
+            params[params.version === '1.3.0' ? 'j' : 'y'] = parseInt(point.y);
+
+            return layer._url + L.Util.getParamString(params, layer._url, true);
+        }
+
+        function fetchAndDisplayInfo(url, latlng, map) {
+            fetch(url)
+                .then(function(response) {
+                    return response.text();
+                })
+                .then(function(data) {
+                    var ndviValue = parseFloat(data.split('=')[1].trim());
+                    ndviValue = ndviValue.toFixed(2);
+                    L.popup()
+                        .setLatLng(latlng)
+                        .setContent('<p>NDVI = ' + ndviValue + '</p>')
+                        .openOn(map);
+                });
+        }
+
+        var legend = L.control({position: 'bottomleft'});
+
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML += '<div><center>0</center></div>';
+            div.innerHTML += '<img src="https://www.geotests.net/geoserver/alegriffon/ows?service=WMS&request=GetLegendGraphic&format=image%2Fpng&width=20&height=20&layer=alegriffon%3Andvi_15042021" alt="Légende NDVI">';
+            div.innerHTML += '<div><center>1</center></div>';
+            return div;
+        };
+
+        legend.addTo(map);
+
+        var controlLayers = L.control.layers(baseMaps, {"NDVI": wmsLayer}, {position: 'topright'}).addTo(map);
+        baseMaps["Google Maps"].addTo(map);
+
+        var treeIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/11813/11813513.png',
+            iconSize: [30, 30],
+            iconAnchor: [15, 30],
+            popupAnchor: [0, -30]
+        });
+
+        var bouconneMarker = L.marker([43.631502, 1.213608], {
+            icon: treeIcon
+        });
+
+        map.on('zoomend', function() {
+            if (map.getZoom() >= 12) {
+                bouconneMarker.addTo(map);
+            } else {
+                map.removeLayer(bouconneMarker);
+            }
+
+            bouconneMarker.bindPopup("<a href='https://www.bouconne.fr/'>Forêt de Bouconne</a>");
+        });
+
+        L.control.scale({position: 'bottomright', imperial: false}).addTo(map); // L'échelle en kilomètres
+    </script>
+</body>
+</html>
